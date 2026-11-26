@@ -338,5 +338,8 @@ LEFT JOIN (SELECT id_venda, SUM(valor) AS total_pagamentos
            FROM pagamento GROUP BY id_venda) pg ON pg.id_venda = t.id_venda
 WHERE pg.total_pagamentos IS NULL OR pg.total_pagamentos &lt;&gt; t.total_itens;
 </code></pre>
+  <p>
+    <a href="index.html">← Voltar para a página inicial</a>
+  </p>
 </body>
 </html>
