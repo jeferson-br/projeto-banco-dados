@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Códigos SQL - AutoMoto Peças Central</title>
+<style>body{margin:24px;background:#fff;color:#000}pre{font:14px/1.5 Consolas,"DejaVu Sans Mono",monospace;overflow-x:auto}</style>
+</head>
+<body>
+<pre><code>SET NAMES utf8mb4;
+CREATE DATABASE automoto_pecas_central
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE automoto_pecas_central;
+
+CREATE TABLE cliente (
+  id_cliente  INT AUTO_INCREMENT PRIMARY KEY,
+  nome        VARCHAR(100) NOT NULL,
+  cpf         CHAR(14)     NOT NULL UNIQUE,
+  telefone    VARCHAR(20)  NOT NULL,
+  email       VARCHAR(100) UNIQUE,
+  cidade      VARCHAR(60)  NOT NULL,
+  uf          CHAR(2)      NOT NULL
+);
+
+CREATE TABLE funcionario (
+  id_funcionario INT AUTO_INCREMENT PRIMARY KEY,
+  nome           VARCHAR(100) NOT NULL,
+  cpf            CHAR(14)     NOT NULL UNIQUE,
+  cargo          VARCHAR(40)  NOT NULL,
+  data_admissao  DATE         NOT NULL
+);
+
+CREATE TABLE fornecedor (
+  id_fornecedor INT AUTO_INCREMENT PRIMARY KEY,
+  razao_social  VARCHAR(120) NOT NULL,
+  cnpj          CHAR(18)     NOT NULL UNIQUE,
+  telefone      VARCHAR(20)  NOT NULL,
+  email         VARCHAR(100) NOT NULL UNIQUE,
+  cidade        VARCHAR(60)  NOT NULL,
+  uf            CHAR(2)      NOT NULL
+);
+
+CREATE TABLE categoria (
+  id_categoria INT AUTO_INCREMENT PRIMARY KEY,
+  nome         VARCHAR(60)  NOT NULL UNIQUE,
+  descricao    VARCHAR(200)
+);
+
+CREATE TABLE produto (
+  id_produto     INT AUTO_INCREMENT PRIMARY KEY,
+  id_categoria   INT           NOT NULL,
+  id_fornecedor  INT           NOT NULL,
+  nome           VARCHAR(120)  NOT NULL UNIQUE,
+  tipo_veiculo   VARCHAR(5)    NOT NULL,
+  preco          DECIMAL(10,2) NOT NULL,
+  estoque        INT           NOT NULL DEFAULT 0,
+  estoque_minimo INT           NOT NULL DEFAULT 5,
+  CONSTRAINT fk_produto_categoria FOREIGN KEY (id_categoria)
+    REFERENCES categoria (id_categoria),
+  CONSTRAINT fk_produto_fornecedor FOREIGN KEY (id_fornecedor)
+    REFERENCES fornecedor (id_fornecedor),
+  CONSTRAINT ck_produto_tipo CHECK (tipo_veiculo IN ('Carro','Moto','Ambos')),
+  CONSTRAINT ck_produto_preco CHECK (preco &gt; 0),
+  CONSTRAINT ck_produto_estoque CHECK (estoque &gt;= 0 AND estoque_minimo &gt;= 0)
+);
+
+CREATE TABLE venda (
+  id_venda       INT AUTO_INCREMENT PRIMARY KEY,
+  id_cliente     INT      NOT NULL,
+  id_funcionario INT      NOT NULL,
+  data_venda     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_venda_cliente FOREIGN KEY (id_cliente)
+    REFERENCES cliente (id_cliente),
+  CONSTRAINT fk_venda_funcionario FOREIGN KEY (id_funcionario)
+    REFERENCES funcionario (id_funcionario)
+);
+
+CREATE TABLE item_venda (
+  id_venda       INT           NOT NULL,
+  id_produto     INT           NOT NULL,
+  quantidade     INT           NOT NULL,
+  preco_unitario DECIMAL(10,2) NOT NULL,
+  PRIMARY KEY (id_venda, id_produto),
+  CONSTRAINT fk_item_venda FOREIGN KEY (id_venda)
+    REFERENCES venda (id_venda),
+  CONSTRAINT fk_item_produto FOREIGN KEY (id_produto)
+    REFERENCES produto (id_produto),
+  CONSTRAINT ck_item_quantidade CHECK (quantidade &gt; 0),
+  CONSTRAINT ck_item_preco CHECK (preco_unitario &gt; 0)
+);
+
+CREATE TABLE pagamento (
+  id_pagamento    INT AUTO_INCREMENT PRIMARY KEY,
+  id_venda        INT           NOT NULL,
+  forma_pagamento VARCHAR(20)   NOT NULL,
+  valor           DECIMAL(10,2) NOT NULL,
+  parcelas        INT           NOT NULL DEFAULT 1,
+  data_pagamento  DATETIME,
+  status          VARCHAR(10)   NOT NULL,
+  CONSTRAINT fk_pagamento_venda FOREIGN KEY (id_venda)
+    REFERENCES venda (id_venda),
+  CONSTRAINT ck_pag_forma CHECK (forma_pagamento IN
+    ('Dinheiro','PIX','Cartão de débito','Cartão de crédito')),
+  CONSTRAINT ck_pag_valor CHECK (valor &gt; 0),
+  CONSTRAINT ck_pag_parcelas CHECK (parcelas BETWEEN 1 AND 12
+    AND (forma_pagamento = 'Cartão de crédito' OR parcelas = 1)),
+  CONSTRAINT ck_pag_status CHECK (
+    (status = 'Pago' AND data_pagamento IS NOT NULL) OR
+    (status = 'Pendente' AND data_pagamento IS NULL))
+);
+
+START TRANSACTION;
+
+INSERT INTO cliente (id_cliente, nome, cpf, telefone, email, cidade, uf) VALUES
+(1,'Cliente Ana Exemplo','000.000.000-01','(00) 90000-0001','ana@exemplo.com','Fortaleza','CE'),
+(2,'Cliente Bruno Teste','000.000.000-02','(00) 90000-0002','bruno@exemplo.com','Caucaia','CE'),
+(3,'Cliente Carla Modelo','000.000.000-03','(00) 90000-0003','carla@exemplo.com','Fortaleza','CE'),
+(4,'Cliente Diego Amostra','000.000.000-04','(00) 90000-0004','diego@exemplo.com','Maracanaú','CE'),
+(5,'Cliente Elisa Fictícia','000.000.000-05','(00) 90000-0005','elisa@exemplo.com','Fortaleza','CE'),
+(6,'Cliente Fábio Demo','000.000.000-06','(00) 90000-0006',NULL,'Eusébio','CE'),
+(7,'Cliente Gabriela Ensaio','000.000.000-07','(00) 90000-0007','gabriela@exemplo.com','Fortaleza','CE'),
+(8,'Cliente Hugo Simulado','000.000.000-08','(00) 90000-0008','hugo@exemplo.com','Aquiraz','CE');
+
+INSERT INTO funcionario (id_funcionario, nome, cpf, cargo, data_admissao) VALUES
+(1,'Vendedora Marina Exemplo','000.000.001-01','Vendedora','2023-02-06'),
+(2,'Vendedor Otávio Teste','000.000.001-02','Vendedor','2024-05-13'),
+(3,'Atendente Paula Modelo','000.000.001-03','Atendente de caixa','2025-01-20'),
+(4,'Gerente Rafael Demo','000.000.001-04','Gerente','2022-08-01');
+
+INSERT INTO fornecedor (id_fornecedor, razao_social, cnpj, telefone, email, cidade, uf) VALUES
+(1,'Distribuidora Filtros Exemplo Ltda','00.000.000/0001-01','(00) 3000-0001','filtros@exemplo.com','Fortaleza','CE'),
+(2,'Freios e Transmissão Modelo Ltda','00.000.000/0001-02','(00) 3000-0002','freios@exemplo.com','Recife','PE'),
+(3,'Elétrica Veicular Teste Ltda','00.000.000/0001-03','(00) 3000-0003','eletrica@exemplo.com','São Paulo','SP'),
+(4,'Pneus Demonstração Ltda','00.000.000/0001-04','(00) 3000-0004','pneus@exemplo.com','Salvador','BA'),
+(5,'Lubrificantes e Acessórios Amostra Ltda','00.000.000/0001-05','(00) 3000-0005','acessorios@exemplo.com','Natal','RN');
+
+INSERT INTO categoria (id_categoria, nome, descricao) VALUES
+(1,'Filtros e Ignição','Filtros de óleo e ar e velas de ignição'),
+(2,'Freios','Pastilhas, lonas e fluidos de freio'),
+(3,'Elétrica e Iluminação','Baterias e lâmpadas'),
+(4,'Pneus','Pneus para carros e motos'),
+(5,'Lubrificantes','Óleos e lubrificantes'),
+(6,'Transmissão','Correntes, coroas, pinhões e correias'),
+(7,'Acessórios','Retrovisores e acessórios em geral');
+
+INSERT INTO produto (id_produto, id_categoria, id_fornecedor, nome, tipo_veiculo, preco, estoque, estoque_minimo) VALUES
+( 1,1,1,'Filtro de óleo Honda CG 160','Moto',18.90,40,10),
+( 2,1,1,'Filtro de ar Fiat Palio','Carro',34.50,15,5),
+( 3,1,1,'Vela de ignição Yamaha Fazer 250','Moto',29.90,4,8),
+( 4,1,1,'Filtro de óleo Volkswagen Gol','Carro',27.00,22,8),
+( 5,2,2,'Pastilha de freio Chevrolet Onix','Carro',119.90,12,4),
+( 6,2,2,'Pastilha de freio Honda CG 160','Moto',39.90,3,6),
+( 7,2,2,'Fluido de freio DOT 4 500 ml','Ambos',32.00,18,5),
+( 8,3,3,'Bateria automotiva 60Ah','Carro',429.00,7,3),
+( 9,3,3,'Bateria de moto 5Ah','Moto',159.90,0,3),
+(10,3,3,'Lâmpada H4 12V','Ambos',24.90,50,10),
+(11,4,4,'Pneu de motocicleta 90/90-18','Moto',229.90,10,4),
+(12,4,4,'Pneu de carro 175/70 R14','Carro',339.00,16,8),
+(13,5,5,'Óleo de motor 10W-40 1L','Ambos',42.90,60,15),
+(14,5,5,'Óleo de motor 5W-30 1L','Carro',49.90,35,10),
+(15,6,2,'Kit relação Honda Titan 160','Moto',189.90,6,3),
+(16,6,2,'Corrente de transmissão 428H','Moto',74.90,2,5),
+(17,6,2,'Correia dentada Fiat Uno','Carro',58.00,9,4),
+(18,7,5,'Retrovisor Honda CG 160 (par)','Moto',69.90,11,4),
+(19,7,5,'Retrovisor direito Chevrolet Onix','Carro',145.00,5,2),
+(20,7,5,'Suporte veicular para celular','Ambos',39.90,25,5);
+
+INSERT INTO venda (id_venda, id_cliente, id_funcionario, data_venda) VALUES
+( 1,1,1,'2026-09-03 09:15:00'),
+( 2,2,2,'2026-09-12 14:40:00'),
+( 3,3,1,'2026-09-25 11:05:00'),
+( 4,4,3,'2026-10-02 16:20:00'),
+( 5,5,2,'2026-10-09 10:30:00'),
+( 6,1,4,'2026-10-18 13:50:00'),
+( 7,6,1,'2026-10-31 17:45:00'),
+( 8,7,2,'2026-11-06 08:55:00'),
+( 9,2,3,'2026-11-14 15:10:00'),
+(10,3,1,'2026-11-23 12:00:00');
+
+INSERT INTO item_venda (id_venda, id_produto, quantidade, preco_unitario) VALUES
+(1, 2,1, 34.50),(1,14,4, 49.90),
+(2, 1,1, 18.90),(2,13,1, 42.90),(2, 6,1, 39.90),
+(3, 8,1,429.00),(3,10,2, 24.90),
+(4,11,2,229.90),(4,18,1, 69.90),
+(5, 5,1,119.90),(5, 7,1, 32.00),
+(6,12,4,339.00),(6,20,1, 39.90),
+(7,15,1,189.90),(7,13,1, 42.90),(7, 3,1, 29.90),
+(8, 4,1, 27.00),(8,14,3, 49.90),(8,17,1, 58.00),
+(9,16,1, 74.90),(9, 1,2, 18.90),
+(10,19,1,145.00),(10,10,2, 24.90),(10,20,1, 39.90);
+
+INSERT INTO pagamento (id_pagamento, id_venda, forma_pagamento, valor, parcelas, data_pagamento, status) VALUES
+( 1, 1,'PIX',               234.10,1,'2026-09-03 09:18:00','Pago'),
+( 2, 2,'Dinheiro',          101.70,1,'2026-09-12 14:43:00','Pago'),
+( 3, 3,'Cartão de crédito', 478.80,3,'2026-09-25 11:10:00','Pago'),
+( 4, 4,'Cartão de débito',  529.70,1,'2026-10-02 16:24:00','Pago'),
+( 5, 5,'PIX',               151.90,1,'2026-10-09 10:33:00','Pago'),
+( 6, 6,'PIX',               395.90,1,'2026-10-18 13:55:00','Pago'),
+( 7, 6,'Cartão de crédito',1000.00,5,'2026-10-18 13:56:00','Pago'),
+( 8, 7,'Cartão de débito',  262.70,1,'2026-10-31 17:49:00','Pago'),
+( 9, 8,'PIX',               234.70,1,'2026-11-06 08:58:00','Pago'),
+(10, 9,'Dinheiro',          112.70,1,'2026-11-14 15:13:00','Pago'),
+(11,10,'PIX',               234.70,1,NULL,'Pendente');
+
+COMMIT;
+
+CREATE VIEW vw_vendas_detalhadas AS
+SELECT v.id_venda,
+       v.data_venda,
+       c.nome AS cliente,
+       f.nome AS funcionario,
+       p.nome AS produto,
+       i.quantidade,
+       i.preco_unitario,
+       i.quantidade * i.preco_unitario AS subtotal
+FROM venda v
+INNER JOIN cliente     c ON c.id_cliente     = v.id_cliente
+INNER JOIN funcionario f ON f.id_funcionario = v.id_funcionario
+INNER JOIN item_venda  i ON i.id_venda       = v.id_venda
+INNER JOIN produto     p ON p.id_produto     = i.id_produto;
+
+CREATE VIEW vw_estoque AS
+SELECT p.nome AS produto,
+       c.nome AS categoria,
+       p.tipo_veiculo,
+       p.preco,
+       p.estoque,
+       CASE
+         WHEN p.estoque = 0 THEN 'Sem estoque'
+         WHEN p.estoque &lt;= p.estoque_minimo THEN 'Estoque baixo'
+         ELSE 'Estoque normal'
+       END AS situacao_estoque
+FROM produto p
+INNER JOIN categoria c ON c.id_categoria = p.id_categoria;
+
+SELECT id_produto, nome, tipo_veiculo, preco, estoque
+FROM produto;
+
+SELECT nome, tipo_veiculo, preco
+FROM produto
+WHERE tipo_veiculo IN ('Carro','Ambos');
+
+SELECT nome, tipo_veiculo, preco
+FROM produto
+WHERE tipo_veiculo IN ('Moto','Ambos');
+
+SELECT p.nome, p.preco
+FROM produto p
+INNER JOIN categoria c ON c.id_categoria = p.id_categoria
+WHERE c.nome = 'Freios';
+
+SELECT nome, estoque
+FROM produto
+WHERE estoque &lt; 5
+ORDER BY estoque;
+
+SELECT DISTINCT c.id_cliente, c.nome
+FROM cliente c
+INNER JOIN venda v ON v.id_cliente = c.id_cliente
+ORDER BY c.nome;
+
+SELECT v.id_venda, v.data_venda, c.nome AS cliente, f.nome AS funcionario
+FROM venda v
+INNER JOIN cliente c ON c.id_cliente = v.id_cliente
+INNER JOIN funcionario f ON f.id_funcionario = v.id_funcionario
+ORDER BY v.data_venda;
+
+SELECT i.id_venda, p.nome AS produto, i.quantidade, i.preco_unitario
+FROM item_venda i
+INNER JOIN produto p ON p.id_produto = i.id_produto
+ORDER BY i.id_venda, p.nome;
+
+SELECT id_venda, SUM(quantidade * preco_unitario) AS valor_total
+FROM item_venda
+GROUP BY id_venda
+ORDER BY id_venda;
+
+SELECT COUNT(DISTINCT id_venda) AS numero_de_vendas,
+       SUM(quantidade * preco_unitario) AS valor_vendido
+FROM item_venda;
+
+SELECT c.id_cliente, c.nome,
+       COALESCE(SUM(i.quantidade * i.preco_unitario), 0) AS total_gasto
+FROM cliente c
+LEFT JOIN venda v ON v.id_cliente = c.id_cliente
+LEFT JOIN item_venda i ON i.id_venda = v.id_venda
+GROUP BY c.id_cliente, c.nome
+ORDER BY total_gasto DESC;
+
+SELECT nome, preco
+FROM produto
+WHERE preco = (SELECT MAX(preco) FROM produto);
+
+SELECT nome, preco
+FROM produto
+WHERE preco = (SELECT MIN(preco) FROM produto);
+
+SELECT ROUND(AVG(preco), 2) AS preco_medio
+FROM produto;
+
+SELECT c.nome AS categoria, COUNT(p.id_produto) AS total_produtos
+FROM categoria c
+LEFT JOIN produto p ON p.id_categoria = c.id_categoria
+GROUP BY c.id_categoria, c.nome
+ORDER BY total_produtos DESC, c.nome;
+
+SELECT id_venda, data_venda, id_cliente
+FROM venda
+WHERE data_venda BETWEEN '2026-10-01 00:00:00' AND '2026-10-31 23:59:59'
+ORDER BY data_venda;
+
+SELECT nome, preco
+FROM produto
+WHERE nome LIKE '%filtro%';
+
+SELECT p.nome, c.nome AS categoria
+FROM produto p
+INNER JOIN categoria c ON c.id_categoria = p.id_categoria
+WHERE c.nome IN ('Pneus','Lubrificantes')
+ORDER BY c.nome, p.nome;
+
+SELECT nome, preco, estoque
+FROM produto
+WHERE tipo_veiculo = 'Moto'
+  AND (preco &lt; 50.00 OR estoque &lt;= estoque_minimo);
+
+SELECT nome, preco, estoque
+FROM produto
+ORDER BY preco DESC, estoque ASC;
+
+SELECT * FROM vw_vendas_detalhadas ORDER BY id_venda, produto;
+SELECT * FROM vw_estoque ORDER BY situacao_estoque, produto;
+
+SELECT t.id_venda, t.total_itens, pg.total_pagamentos
+FROM (SELECT id_venda, SUM(quantidade * preco_unitario) AS total_itens
+      FROM item_venda GROUP BY id_venda) t
+LEFT JOIN (SELECT id_venda, SUM(valor) AS total_pagamentos
+           FROM pagamento GROUP BY id_venda) pg ON pg.id_venda = t.id_venda
+WHERE pg.total_pagamentos IS NULL OR pg.total_pagamentos &lt;&gt; t.total_itens;
+</code></pre>
+</body>
+</html>
